@@ -5,25 +5,26 @@ using Microsoft.IdentityModel.Tokens;
 using NexusInventory.Application.Interfaces;
 using NexusInventory.Infrastructure.Data;
 using NexusInventory.Infrastructure.Repositories;
+using NexusInventory.Api.Middleware;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Setup Serilog (Rule #5)
+// Setup Serilog
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateLogger();
 builder.Host.UseSerilog();
 
-// Setup Database (SQLite)
+// Setup Database
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Dependency Injection
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
-builder.Services.AddMemoryCache(); // Senior Level - Caching
+builder.Services.AddMemoryCache();
 
-// JWT Setup (Rule #1)
+// JWT Setup
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options => {
@@ -38,6 +39,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+// Tambahkan CORS agar Frontend React bisa akses API
+builder.Services.AddCors(options => {
+    options.AddPolicy("AllowAll", b => b.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+});
+
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -45,16 +51,20 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+// GLOBAL EXCEPTION HANDLING (Rule #5b) - Harus paling atas
+app.UseMiddleware<ExceptionMiddleware>();
+
 if (app.Environment.IsDevelopment()) {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Auto-migrate Database
+// Auto-migrate
 using (var scope = app.Services.CreateScope()) {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
