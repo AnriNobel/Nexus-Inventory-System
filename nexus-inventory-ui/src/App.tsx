@@ -13,63 +13,100 @@ function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [name, setName] = useState('');
+  const [price, setPrice] = useState(0);
+
+  const API_URL = "http://localhost:5237/api";
+
+  const fetchProducts = async (search = "") => {
+    if (!token) return;
+    try {
+      const url = search 
+        ? `${API_URL}/products/search?name=${search}` 
+        : `${API_URL}/products`;
+      const res = await axios.get(url, {
+        headers: { "Authorization": "Bearer " + token }
+      });
+      setProducts(res.data);
+    } catch (err) {
+      console.error("Fetch error:", err);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
     try {
-      const res = await axios.post('http://localhost:5237/api/auth/login', { username, password });
+      const res = await axios.post(`${API_URL}/auth/login`, { username, password });
       localStorage.setItem('token', res.data.token);
       setToken(res.data.token);
-      window.location.reload();
     } catch (err) {
-      alert('Login Gagal! Gunakan admin / admin123');
+      alert('Login Gagal!');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
-    setToken(null);
-    window.location.reload();
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API_URL}/products`, 
+        { name, price, description: "Added from Nexus UI" },
+        { headers: { "Authorization": "Bearer " + token } }
+      );
+      setName(''); setPrice(0);
+      fetchProducts();
+    } catch (err) {
+      alert("Gagal tambah produk");
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("Hapus produk ini?")) return;
+    try {
+      await axios.delete(`${API_URL}/products/${id}`, {
+        headers: { "Authorization": "Bearer " + token }
+      });
+      fetchProducts();
+    } catch (err) {
+      alert("Gagal hapus");
+    }
   };
 
   useEffect(() => {
-    if (token) {
-      axios.get('http://localhost:5237/api/products', {
-        headers: { "Authorization": "Bearer " + token }
-      })
-      .then(res => setProducts(res.data))
-      .catch(err => {
-        if(err.response?.status === 401) handleLogout();
-      });
-    }
+    fetchProducts();
   }, [token]);
 
   if (!token) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', fontFamily: 'Arial, sans-serif', backgroundColor: '#1a202c', margin: 0 }}>
-        <div style={{ textAlign: 'center' }}>
-          {/* Teks Sambutan untuk Penguji */}
-          <h2 style={{ color: '#ebf8ff', marginBottom: '10px', fontWeight: '300' }}>Selamat Datang</h2>
-          <p style={{ color: '#a0aec0', marginBottom: '25px' }}>Silakan Login untuk Menguji Sistem</p>
-          
-          <form onSubmit={handleLogin} style={{ padding: '40px', background: '#ffffff', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.3)', width: '320px', textAlign: 'left' }}>
-            <h2 style={{ textAlign: 'center', marginBottom: '25px', color: '#2d3748', fontSize: '22px', fontWeight: 'bold' }}>Nexus Login</h2>
-            
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', color: '#4a5568', marginBottom: '5px', fontSize: '14px' }}>Username</label>
-              <input type="text" placeholder="admin" style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e0', boxSizing: 'border-box', color: '#2d3748' }} onChange={e => setUsername(e.target.value)} />
+      <div className="login-screen">
+        <div className="card login-card">
+          <h1>.NET Developer Technical Assessment</h1>
+          <form onSubmit={handleLogin}>
+            <div className="form-group">
+              <label htmlFor="username">Username</label>
+              <input 
+                id="username"
+                type="text" 
+                placeholder="admin" 
+                onChange={e => setUsername(e.target.value)} 
+                required 
+              />
             </div>
-            
-            <div style={{ marginBottom: '25px' }}>
-              <label style={{ display: 'block', color: '#4a5568', marginBottom: '5px', fontSize: '14px' }}>Password</label>
-              <input type="password" placeholder="admin123" style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e0', boxSizing: 'border-box', color: '#2d3748' }} onChange={e => setPassword(e.target.value)} />
+            <div className="form-group">
+              <label htmlFor="password">Password</label>
+              <input 
+                id="password"
+                type="password" 
+                placeholder="admin123" 
+                onChange={e => setPassword(e.target.value)} 
+                required 
+              />
             </div>
-            
-            <button style={{ width: '100%', padding: '12px', backgroundColor: '#3182ce', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>SIGN IN</button>
-            
-            <p style={{ marginTop: '20px', fontSize: '12px', color: '#718096', textAlign: 'center' }}>
-              Gunakan kredensial default untuk akses cepat.
-            </p>
+            <button type="submit" className="btn-primary full-width">
+              {loading ? 'Logging in...' : 'SIGN IN'}
+            </button>
           </form>
         </div>
       </div>
@@ -77,33 +114,77 @@ function App() {
   }
 
   return (
-    <div style={{ padding: '40px', fontFamily: 'Arial, sans-serif', backgroundColor: '#f7fafc', minHeight: '100vh', color: '#2d3748' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', borderBottom: '2px solid #e2e8f0', paddingBottom: '20px' }}>
-        <h1 style={{ color: '#2c5282', margin: 0 }}>Nexus Inventory System</h1>
-        <button onClick={handleLogout} style={{ padding: '10px 20px', backgroundColor: '#e53e3e', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Logout</button>
-      </div>
-      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead style={{ backgroundColor: '#2d3748', color: 'white' }}>
-            <tr>
-              <th style={{ padding: '15px', textAlign: 'left' }}>Product Name</th>
-              <th style={{ padding: '15px', textAlign: 'left' }}>Price</th>
-              <th style={{ padding: '15px', textAlign: 'left' }}>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.length > 0 ? products.map(p => (
-              <tr key={p.id} style={{ borderBottom: '1px solid #edf2f7' }}>
-                <td style={{ padding: '15px' }}>{p.name}</td>
-                <td style={{ padding: '15px', fontWeight: 'bold', color: '#38a169' }}>${p.price}</td>
-                <td style={{ padding: '15px', color: '#3182ce', cursor: 'pointer', fontWeight: '600' }}>Edit</td>
+    <div id="root">
+      <nav className="nav-header">
+        <h2>.NET Developer Technical Assessment</h2>
+        <button onClick={() => { localStorage.removeItem('token'); setToken(null); }} className="btn-logout">Logout</button>
+      </nav>
+
+      <main className="main-content">
+        <section className="card">
+          <div className="section-header-flex">
+            <h2>Products</h2>
+            <input 
+              type="text" 
+              id="product-search"
+              aria-label="Search product name"
+              placeholder="Search product name..." 
+              className="search-input" 
+              onChange={(e) => fetchProducts(e.target.value)}
+            />
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>NAME</th>
+                <th>PRICE</th>
+                <th className="text-right">ACTION</th>
               </tr>
-            )) : (
-              <tr><td colSpan={3} style={{ padding: '30px', textAlign: 'center', color: '#718096' }}>No products found in database. Login successful!</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {products.map(p => (
+                <tr key={p.id}>
+                  <td>{p.name}</td>
+                  <td className="price-col">${p.price.toLocaleString()}</td>
+                  <td className="text-right">
+                    <button onClick={() => handleDelete(p.id)} className="btn-delete">Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {products.length === 0 && <p className="empty-state">No products found.</p>}
+        </section>
+
+        <section className="card side-form">
+          <h2>Add Product</h2>
+          <form onSubmit={handleAddProduct}>
+            <div className="form-group">
+              <label htmlFor="new-product-name">Product Name</label>
+              <input 
+                id="new-product-name"
+                value={name} 
+                placeholder="Enter name"
+                onChange={e => setName(e.target.value)} 
+                required 
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="new-product-price">Price</label>
+              <input 
+                id="new-product-price"
+                type="number" 
+                value={price} 
+                placeholder="0"
+                onChange={e => setPrice(Number(e.target.value))} 
+                required 
+              />
+            </div>
+            <button type="submit" className="btn-primary full-width">SAVE PRODUCT</button>
+          </form>
+        </section>
+      </main>
     </div>
   );
 }
